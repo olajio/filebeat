@@ -1,0 +1,150 @@
+filebeat.inputs:
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Program Files\filebeat\logs\filebeat*
+  fields:
+    service.environment: PROD
+    service.type: filebeat
+    service.name: filebeat-logs
+  fields_under_root: True
+  ignore_decoding_error: True
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Automations\Logs\*.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    app-name: blueprism
+  fields_under_root: True
+  ignore_decoding_error: True
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Automations\Email Sweep\Elastic Reports\*.csv
+
+  fields:
+    app-env: PROD
+    client-env: BPRBTPROD
+    app-name: blueprism
+    app-log-type: blueprism-sweep-report
+  fields_under_root: True
+  ignore_decoding_error: True
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Automations\Infrastructure Monitor Runner\out\Solidfire*.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    service.name: "solidfire-metrics"
+    service.type: "solidfire"
+    service.environment: "prod"
+  fields_under_root: true
+
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Automations\Infrastructure Monitor Runner\out\20*.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    service.name: "inframon-logs"
+    service.type: "inframon"
+    service.environment: "prod"
+  fields_under_root: true
+
+
+- type: log
+  enabled: True
+  paths:
+    - C:\Automations\Infrastructure Monitor Runner\out\Netapp*.json
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    service.name: "netapp-metrics"
+    service.type: "netapp"
+    service.environment: "prod"
+  fields_under_root: true
+
+setup.ilm.enabled: false
+setup.template.enabled: false
+setup.dashboards.enabled: false
+
+queue.mem:
+  events: 12000
+  flush.min_events: 3000
+  flush.timeout: 5s
+
+output.elasticsearch:
+  hosts: ["https://hselkprod.hedgeserv.net:9243"]
+  username: "filebeat_internal"
+  password: "${ES_PWD}"
+  indices:
+    - index: "filebeat-%{[agent.version]}-inframon"
+      when.contains:
+        app-name: "blueprism"
+    - index: "filebeat-%{[agent.version]}-inframon"
+      when.contains:
+        service.name: filebeat-logs
+    - index: "filebeat-%{[agent.version]}-inframon"
+      when.contains:
+        service.name: "netapp-metrics"
+    - index: "filebeat-%{[agent.version]}-inframon"
+      when.contains:
+        service.name: "solidfire-metrics"
+    - index: "filebeat-%{[agent.version]}-inframon"
+      when.contains:
+        service.name: "inframon-logs"
+  pipeline: filebeat_main
+  ssl.verification_mode: "none"
+
+monitoring:
+  enabled: true
+  cluster_uuid: uXgaSKNVTnSv3BrGSmfmsQ
+  elasticsearch:
+    hosts: [https://hselkmon.hedgeserv.net:9243]
+    username: beats_monitoring
+    password: ${ES_PWD}
+
+processors:
+  - add_locale: ~
+  - add_labels:
+      labels:
+        app_code: BPRBT
+        datacenter: ES01
+        domain: funddevelopmentservices.com
+        elk_ansible_version: 1.42.3
+  - rename:
+      when:
+        not:
+          has_fields: ["host.hostname"]
+      fields:
+        - from: "host.name"
+          to: "host.hostname"
+  - drop_fields:
+      fields: ["agent.ephemeral_id","agent.hostname","agent.id","agent.name","agent.type","ecs.version","metricset.period","input.type"]
+  - truncate_fields:
+      fields:
+      - message
+      max_bytes: 256000
+      fail_on_error: false
+      ignore_missing: true
+
+logging:
+  to_files: true
+  files:
+    path: C:\Program Files\filebeat\logs
+    keepfiles: 20
+  level: info
+  selectors: [harvester, input]
